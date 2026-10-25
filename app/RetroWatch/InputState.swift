@@ -8,11 +8,13 @@ import GameController
 /// state, which the game thread hands to the core every frame.
 ///
 /// First-pass touch scheme (the watch screen only tracks one finger):
-/// drag = analog stick, tap = A, Digital Crown = C-left / C-right.
+/// drag = analog stick, tap = A, long press = Start, Digital Crown = C-left /
+/// C-right.
 final class InputState {
     private let lock = NSLock()
     private var touchStick = CGVector.zero // -1...1 on each axis
     private var tapFramesLeft = 0
+    private var startFramesLeft = 0
     private var crownFramesLeft = 0
     private var crownButton: UInt16 = 0
 
@@ -24,6 +26,10 @@ final class InputState {
 
     func tap() {
         lock.withLock { tapFramesLeft = 4 }
+    }
+
+    func pressStart() {
+        lock.withLock { startFramesLeft = 4 }
     }
 
     func crownTurned(by delta: Double) {
@@ -44,6 +50,10 @@ final class InputState {
             if tapFramesLeft > 0 {
                 buttons |= UInt16(WATCH_BTN_A)
                 tapFramesLeft -= 1
+            }
+            if startFramesLeft > 0 {
+                buttons |= UInt16(WATCH_BTN_START)
+                startFramesLeft -= 1
             }
             if crownFramesLeft > 0 {
                 buttons |= crownButton

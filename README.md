@@ -96,9 +96,10 @@ The watch screen tracks only one finger, so controls are a design problem in the
 |---|---|
 | Drag anywhere | Analog stick |
 | Tap | A |
+| Hold still for half a second, then lift | Start |
 | Digital Crown | Camera (C-left / C-right) |
 
-B, Z, R and Start don't have a mapping yet. Bluetooth gamepads would solve this, but watchOS has no GameController framework.
+B, Z and R don't have a mapping yet. Bluetooth gamepads would solve this, but watchOS has no GameController framework.
 
 ## Roadmap
 

@@ -41,7 +41,8 @@ struct GameView: View {
     }
 
     /// Drag from wherever the finger lands: the offset is the stick. A short,
-    /// still touch counts as a tap (A button).
+    /// still touch is a tap (A button); a still touch held for half a second
+    /// is Start, sent when the finger lifts.
     private func touchStick(radius: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
@@ -53,8 +54,13 @@ struct GameView: View {
             }
             .onEnded { value in
                 let moved = hypot(value.translation.width, value.translation.height)
-                if let start = touchStart, moved < 8, Date().timeIntervalSince(start) < 0.3 {
-                    core.input.tap()
+                if let start = touchStart, moved < 8 {
+                    let held = Date().timeIntervalSince(start)
+                    if held < 0.3 {
+                        core.input.tap()
+                    } else if held >= 0.5 {
+                        core.input.pressStart()
+                    }
                 }
                 touchStart = nil
                 core.input.setTouchStick(.zero)
