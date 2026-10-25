@@ -1,0 +1,361 @@
+Ship of Harkinian for the Apple Watch, applied by tools/build-oot.sh.
+
+- CMakeLists.txt, soh/CMakeLists.txt: a watchOS platform. The game is built as
+  a static library for the watch app, without Torch and the in-game ROM
+  extractor (the archives are made on the Mac); its dependencies come from
+  port/oot/cmake/watchos.cmake. Text-to-speech uses AVSpeechSynthesizer, as on
+  the Mac.
+- soh/soh/OTRGlobals.cpp: no ROM extraction step on the watch (the archives
+  are in the app bundle); error boxes go to the log; when frames fall
+  behind the game's rate, the audio thread makes up the missing audio.
+- soh/src/code/main.c, graph.c: on the watch, main() is SohWatch_Start(), which
+  sets the game up and returns, and Graph_RunFrame() runs one frame, so the
+  watch app drives the frame loop.
+- soh/assets/tools/torch-cli/main.cpp: read the ROM before handing it to
+  SohTorch::Extract(), which takes its bytes (an upstream build break).
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index eb3c3875..f42f0b1c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -197,6 +197,12 @@ add_compile_definitions(CONTROLLERBUTTONS_T=uint32_t)
+ ################################################################################
+ find_package(ZLIB REQUIRED)
+ 
++# The Apple Watch port (Retro Apple Watch) builds only the game: the archives
++# are extracted on the Mac, and its dependencies come from WATCH_PORT_CMAKE.
++if(CMAKE_SYSTEM_NAME STREQUAL "watchOS")
++    include(${WATCH_PORT_CMAKE})
++else()
++
+ include(FetchContent)
+ 
+ # spdlog runs fmt's consteval format check in every log macro, and clang >= 21 rejects it as
+@@ -242,6 +248,8 @@ foreach(_torch_game SM64 MK64 SF64 PM64 FZERO BK64 MARIO_ARTIST)
+     set(BUILD_${_torch_game} OFF CACHE BOOL "" FORCE)
+ endforeach()
+ 
++endif() # not watchOS
++
+ # SYSTEM only covers headers we include; torch and the libraries it fetches still warn while
+ # compiling their own sources. None of that is ours to fix.
+ if(MSVC)
+@@ -280,6 +288,7 @@ function(quiet_dependency_tree dir)
+     endforeach()
+ endfunction()
+ 
++if(NOT CMAKE_SYSTEM_NAME STREQUAL "watchOS")
+ add_subdirectory(torch SYSTEM)
+ quiet_dependency_tree(${CMAKE_CURRENT_SOURCE_DIR}/torch)
+ 
+@@ -358,6 +367,7 @@ add_custom_target(GenerateSohOtr ALL DEPENDS ${CMAKE_BINARY_DIR}/soh/soh.o2r)
+ 
+ # ExtractAssets produced soh.o2r as well as the rom archives, so keep doing that.
+ add_dependencies(ExtractAssets GenerateSohOtr)
++endif() # not watchOS
+ 
+ # The asset tools only need torch, so a tools-only configure can skip libultraship and soh
+ # entirely -- that is all CI needs to produce soh.o2r.
+diff --git a/soh/CMakeLists.txt b/soh/CMakeLists.txt
+index f356d214..7bc64ee6 100644
+--- a/soh/CMakeLists.txt
++++ b/soh/CMakeLists.txt
+@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 20 CACHE STRING "The C++ standard to use")
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ set(CMAKE_C_STANDARD 23 CACHE STRING "The C standard to use")
+ 
+-if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
++if (CMAKE_SYSTEM_NAME MATCHES "Darwin|watchOS")
+     enable_language(OBJCXX)
+     set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -fobjc-arc")
+     set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -fobjc-arc")
+@@ -153,7 +153,7 @@ endif()
+ # handle speechsynthesizer removals
+ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+     list(FILTER soh__ EXCLUDE REGEX "soh/Enhancements/speechsynthesizer/Darwin")
+-elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
++elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin|watchOS")
+     list(FILTER soh__ EXCLUDE REGEX "soh/Enhancements/speechsynthesizer/SAPI")
+ else()
+     list(FILTER soh__ EXCLUDE REGEX "soh/Enhancements/speechsynthesizer/(Darwin|SAPI)")
+@@ -166,8 +166,11 @@ endif()
+ 
+ # soh/Extractor {{{
+ list(FILTER ship__ EXCLUDE REGEX "soh/Extractor/*")
++if (CMAKE_SYSTEM_NAME STREQUAL "watchOS")
++    list(FILTER soh__ EXCLUDE REGEX "soh/Extractor/")
++endif()
+ 
+-if(NOT CMAKE_SYSTEM_NAME MATCHES "NintendoSwitch|CafeOS")
++if(NOT CMAKE_SYSTEM_NAME MATCHES "NintendoSwitch|CafeOS|watchOS")
+     file(GLOB_RECURSE soh__Extractor CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+         "soh/Extractor/*.c"
+         "soh/Extractor/*.cpp"
+@@ -226,7 +229,11 @@ set(ALL_FILES
+ ################################################################################
+ # Target
+ ################################################################################
+-add_executable(${PROJECT_NAME} ${ALL_FILES})
++if (CMAKE_SYSTEM_NAME STREQUAL "watchOS")
++    add_library(${PROJECT_NAME} STATIC ${ALL_FILES})
++else()
++    add_executable(${PROJECT_NAME} ${ALL_FILES})
++endif()
+ 
+ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+ use_props(${PROJECT_NAME} "${CMAKE_CONFIGURATION_TYPES}" "${DEFAULT_CXX_PROPS}")
+@@ -387,6 +394,19 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+         SPDLOG_ACTIVE_LEVEL=${SPDLOG_MIN_CUTOFF}
+         LOG_LEVEL_GAME_PRINTS=${SPDLOG_LEVEL_OFF}
+     )
++elseif (CMAKE_SYSTEM_NAME STREQUAL "watchOS")
++    target_compile_definitions(${PROJECT_NAME} PRIVATE
++        "$<$<CONFIG:Debug>:"
++            "_DEBUG;"
++        ">"
++        "$<$<CONFIG:Release>:"
++            "NDEBUG;"
++        ">"
++        "F3DEX_GBI_2;"
++        "SOH_WATCH_PORT;"
++        SPDLOG_ACTIVE_LEVEL=${SPDLOG_MIN_CUTOFF}
++        LOG_LEVEL_GAME_PRINTS=${SPDLOG_LEVEL_OFF}
++    )
+ elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU|Clang|AppleClang")
+     target_compile_definitions(${PROJECT_NAME} PRIVATE
+         "$<$<CONFIG:Debug>:"
+@@ -482,7 +502,7 @@ if(MSVC)
+ endif()
+ 
+ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+-    if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
++    if (CMAKE_SYSTEM_NAME MATCHES "Darwin|watchOS")
+         target_compile_options(${PROJECT_NAME} PRIVATE
+             -Wall -Wextra -Wno-error
+             -Wformat-security
+@@ -605,19 +625,25 @@ if (CMAKE_GENERATOR MATCHES "Visual Studio")
+     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/soh/assets/yml ${CMAKE_BINARY_DIR}/soh/assets
+     )
+ endif()
++if (NOT CMAKE_SYSTEM_NAME STREQUAL "watchOS")
+ add_custom_command(
+     TARGET ${PROJECT_NAME}
+     POST_BUILD
+     COMMENT "Copying asset ymls..."
+     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/soh/assets/yml $<TARGET_FILE_DIR:soh>/assets
+ )
++endif()
+ ################################################################################
+ # Dependencies
+ ################################################################################
+-add_dependencies(${PROJECT_NAME}
+-    libultraship
+-    torch
+-)
++if (CMAKE_SYSTEM_NAME STREQUAL "watchOS")
++    add_dependencies(${PROJECT_NAME} libultraship)
++else()
++    add_dependencies(${PROJECT_NAME}
++        libultraship
++        torch
++    )
++endif()
+ 
+ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+     find_package(glfw3 REQUIRED)
+@@ -674,6 +700,17 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+         -lglad
+         Threads::Threads
+     )
++elseif(CMAKE_SYSTEM_NAME STREQUAL "watchOS")
++    set(ADDITIONAL_LIBRARY_DEPENDENCIES
++        "libultraship;"
++        SDL2::SDL2-static
++        SDL2_net::SDL2_net
++        ogg
++        vorbis
++        vorbisfile
++        opus
++        opusfile
++    )
+ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+     find_package(SDL2 REQUIRED)
+     set(ADDITIONAL_LIBRARY_DEPENDENCIES
+@@ -744,7 +781,7 @@ if(USE_ASAN)
+ endif()
+ 
+ 
+-if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin|NintendoSwitch|CafeOS")
++if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin|NintendoSwitch|CafeOS|watchOS")
+ INSTALL(TARGETS soh DESTINATION . COMPONENT ship)
+ endif()
+ 
+@@ -761,7 +798,7 @@ configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/macosx/Info.plist.in ${CMAKE_BINARY_
+ INSTALL(TARGETS soh DESTINATION ../MacOS COMPONENT ship)
+ INSTALL(FILES ${CMAKE_BINARY_DIR}/gamecontrollerdb.txt DESTINATION ../MacOS COMPONENT ship)
+ INSTALL(FILES ${CMAKE_BINARY_DIR}/soh/soh.o2r DESTINATION ../Resources COMPONENT ship)
+-elseif(NOT "${CMAKE_SYSTEM_NAME}" MATCHES "NintendoSwitch|CafeOS")
++elseif(NOT "${CMAKE_SYSTEM_NAME}" MATCHES "NintendoSwitch|CafeOS|watchOS")
+ INSTALL(FILES ${CMAKE_BINARY_DIR}/gamecontrollerdb.txt DESTINATION . COMPONENT ship)
+ endif()
+ 
+diff --git a/soh/assets/tools/torch-cli/main.cpp b/soh/assets/tools/torch-cli/main.cpp
+index bc2a3d14..56f63001 100644
+--- a/soh/assets/tools/torch-cli/main.cpp
++++ b/soh/assets/tools/torch-cli/main.cpp
+@@ -8,6 +8,8 @@
+ #include <cstdio>
+ #include <cstdlib>
+ #include <filesystem>
++#include <fstream>
++#include <iterator>
+ #include <string>
+ #include <vector>
+ 
+@@ -98,7 +100,9 @@ int main(int argc, char** argv) {
+ 
+     for (const auto& rom : roms) {
+         // A fresh extraction per ROM; torch names the archive from config.yml.
+-        const std::string archive = SohTorch::Extract(rom, src, dest, version, nullptr);
++        std::ifstream file(rom, std::ios::binary);
++        std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
++        const std::string archive = SohTorch::Extract(bytes, src, dest, version, nullptr);
+         if (archive.empty()) {
+             fprintf(stderr, "failed to extract %s\n", rom.c_str());
+             return 1;
+diff --git a/soh/soh/OTRGlobals.cpp b/soh/soh/OTRGlobals.cpp
+index 79a804b9..6ef7339c 100644
+--- a/soh/soh/OTRGlobals.cpp
++++ b/soh/soh/OTRGlobals.cpp
+@@ -56,7 +56,7 @@
+ #include <fast/Fast3dGui.h>
+ #include <fast/debug/GfxDebugger.h>
+ 
+-#if not defined(__SWITCH__) && not defined(__WIIU__)
++#if not defined(__SWITCH__) && not defined(__WIIU__) && not defined(SOH_WATCH_PORT)
+ #include "Extractor/Extract.h"
+ #endif
+ 
+@@ -408,6 +408,7 @@ static bool RemoveArchiveAcrossAppDirs(const std::string& fileName) {
+     return !std::filesystem::exists(Ship::Context::LocateFileAcrossAppDirs(fileName, appShortName));
+ }
+ 
++#ifndef SOH_WATCH_PORT // the watch app bundles the archives
+ void OTRGlobals::RunExtract(int argc, char* argv[]) {
+     bool extractDone = false;
+     ExtractSteps extractStep = ES_PORT_ARCHIVE;
+@@ -821,6 +822,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
+     Ship::WiiU::Init(appShortName);
+ #endif
+ }
++#endif // SOH_WATCH_PORT
+ 
+ void InitGfxDebugger() {
+     auto dbg =
+@@ -1100,6 +1102,14 @@ void OTRAudio_Thread() {
+ 
+         AudioPlayer_Play((u8*)audio_buffer,
+                          num_audio_samples * (sizeof(int16_t) * NUM_AUDIO_CHANNELS * AUDIO_FRAMES_PER_UPDATE));
++#ifdef SOH_WATCH_PORT
++        // The watch cannot always keep up with the 60 fps the title screen and
++        // menus ask for. Make up the missing audio so it never runs dry.
++        while (AudioPlayer_Buffered() < AudioPlayer_GetDesiredBuffered() / 2) {
++            AudioMgr_CreateNextAudioBuffer(audio_buffer, SAMPLES_HIGH);
++            AudioPlayer_Play((u8*)audio_buffer, SAMPLES_HIGH * sizeof(int16_t) * NUM_AUDIO_CHANNELS);
++        }
++#endif
+ 
+         audio.processing = false;
+         audio.cv_from_thread.notify_one();
+@@ -1506,7 +1516,11 @@ OTRVersion DetectOTRVersion(std::string fileName, bool isMQ) {
+ }
+ 
+ extern "C" void Messagebox_ShowErrorBox(char* title, char* body) {
++#ifdef SOH_WATCH_PORT
++    SPDLOG_ERROR("{}: {}", title, body);
++#else
+     Extractor::ShowErrorBox(title, body);
++#endif
+ }
+ 
+ bool VerifyArchiveVersion(OTRVersion version) {
+@@ -1552,7 +1566,9 @@ extern "C" void InitOTR(int argc, char* argv[]) {
+     SetAppImageHome();
+ #endif
+     OTRGlobals::Instance = new OTRGlobals();
++#ifndef SOH_WATCH_PORT
+     OTRGlobals::Instance->RunExtract(argc, argv);
++#endif
+ 
+     OTRGlobals::Instance->Initialize();
+     CustomMessageManager::Instance = new CustomMessageManager();
+diff --git a/soh/src/code/graph.c b/soh/src/code/graph.c
+index 4190955a..bc169024 100644
+--- a/soh/src/code/graph.c
++++ b/soh/src/code/graph.c
+@@ -506,6 +506,13 @@ static void RunFrame() {
+     exit(0);
+ }
+ 
++#ifdef SOH_WATCH_PORT
++// One frame of the game, for the Apple Watch app's own frame loop.
++void Graph_RunFrame(void) {
++    RunFrame();
++}
++#endif
++
+ void Graph_ThreadEntry(void* arg0) {
+     while (WindowIsRunning()) {
+         RunFrame();
+diff --git a/soh/src/code/main.c b/soh/src/code/main.c
+index 4e68d5da..dbaf2002 100644
+--- a/soh/src/code/main.c
++++ b/soh/src/code/main.c
+@@ -57,6 +57,11 @@ int SDL_main(int argc, char* argv[]) {
+     // Keep '.' as the decimal point, user locale may use ','
+     setlocale(LC_NUMERIC, "C");
+ 
++#elif defined(SOH_WATCH_PORT)
++// The Apple Watch app (Retro Apple Watch) owns main(). It starts the game
++// with this, which returns once the game is set up, and then runs it one
++// frame at a time with Graph_RunFrame() (graph.c).
++int SohWatch_Start(int argc, char* argv[]) {
+ #else //_WIN32
+ int main(int argc, char* argv[]) {
+ #endif
+@@ -68,15 +73,25 @@ int main(int argc, char* argv[]) {
+ 
+     Heaps_Alloc();
+     Main(0);
++#ifdef SOH_WATCH_PORT
++    return 0;
++#endif
+     DeinitOTR();
+     Heaps_Free();
+     return 0;
+ }
+ 
+ void Main(void* arg) {
++#ifdef SOH_WATCH_PORT
++    // Main() returns early on the watch, and these are handed to the IRQ manager.
++    static IrqMgrClient irqClient;
++    static OSMesgQueue irqMgrMsgQ;
++    static OSMesg irqMgrMsgBuf[60];
++#else
+     IrqMgrClient irqClient;
+     OSMesgQueue irqMgrMsgQ;
+     OSMesg irqMgrMsgBuf[60];
++#endif
+     uintptr_t sysHeap;
+     uintptr_t fb;
+     void* debugHeap;
+@@ -140,6 +155,9 @@ void Main(void* arg) {
+     osStartThread(&sGraphThread);
+     osSetThreadPri(0, Z_PRIORITY_SCHED);
+ 
++#ifdef SOH_WATCH_PORT
++    return; // the watch app runs the frames (Graph_RunFrame)
++#endif
+     Graph_ThreadEntry(0);
+ 
+     while (true) {

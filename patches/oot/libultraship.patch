@@ -1,0 +1,357 @@
+libultraship for the Apple Watch, applied by tools/build-oot.sh.
+
+- src/CMakeLists.txt: LUS_WATCH_PORT_SOURCES / LUS_WATCH_PORT_INCLUDES compile
+  the watch's backends (port/oot) into the library and define LUS_WATCH_PORT.
+- src/fast/Fast3dWindow.cpp: with LUS_WATCH_PORT, the software renderer and
+  the fixed-size window backend, and no ImGui composite: the game fills the
+  window and the renderer publishes it.
+- src/ship/audio/Audio.cpp, src/libultraship/libultra/os.cpp: the watch's audio
+  player and controller input.
+- CMakeLists.txt, src/*/CMakeLists.txt, AudioPlayer.h, Audio.cpp,
+  Fast3dGui.cpp: a watchOS platform (__WATCHOS__) without Metal, OpenGL,
+  Core Audio or the SDL window backend.
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 08cc791..1a2adbb 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -19,7 +19,7 @@ endif()
+ 
+ project(libultraship LANGUAGES C CXX)
+ 
+-if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
++if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "watchOS")
+     enable_language(OBJCXX)
+     set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -fobjc-arc")
+     set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -fobjc-arc")
+diff --git a/include/ship/audio/AudioPlayer.h b/include/ship/audio/AudioPlayer.h
+index 6ac86f1..5d9b5c3 100644
+--- a/include/ship/audio/AudioPlayer.h
++++ b/include/ship/audio/AudioPlayer.h
+@@ -158,7 +158,7 @@ class AudioPlayer {
+ #include "WasapiAudioPlayer.h"
+ #endif
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+ #include "CoreAudioAudioPlayer.h"
+ #endif
+ 
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 45989b6..31e3e74 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -10,6 +10,19 @@ set_target_properties(libultraship PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+ find_package(Python3 REQUIRED COMPONENTS Interpreter)
+ 
+ set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../include)
++
++# The Apple Watch port's backends (Retro Apple Watch, port/oot): their sources
++# and include directories, compiled with libultraship's own flags.
++set(LUS_WATCH_PORT_SOURCES "" CACHE STRING "Watch port sources built into libultraship")
++set(LUS_WATCH_PORT_INCLUDES "" CACHE STRING "Include directories of the watch port sources")
++if(LUS_WATCH_PORT_SOURCES)
++    target_sources(libultraship PRIVATE ${LUS_WATCH_PORT_SOURCES})
++    target_include_directories(libultraship PRIVATE ${LUS_WATCH_PORT_INCLUDES})
++    target_compile_definitions(libultraship PRIVATE LUS_WATCH_PORT)
++    # The software renderer is the hot spot, and drawing does not need the
++    # strict floating point the game's own code is built with.
++    set_source_files_properties(${LUS_WATCH_PORT_SOURCES} PROPERTIES COMPILE_OPTIONS "-O3;-ffp-contract=fast")
++endif()
+ option(USE_OPENGLES "Enable GLES3" OFF)
+ option(GFX_DEBUG_DISASSEMBLER "Enable libgfxd" OFF)
+ 
+@@ -55,7 +68,7 @@ add_subdirectory("libultraship")
+ 
+ add_subdirectory("ship")
+ 
+-if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
++if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "watchOS")
+     set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/ship/utils/AppleFolderManager.mm PROPERTIES COMPILE_FLAGS -fno-objc-arc)
+ endif()
+ 
+@@ -201,6 +214,14 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+             XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+         )
+     endif()
++elseif (CMAKE_SYSTEM_NAME STREQUAL "watchOS")
++    target_compile_definitions(libultraship PUBLIC __WATCHOS__)
++    target_compile_definitions(libultraship PRIVATE
++        $<$<CONFIG:Debug>:_DEBUG>
++        $<$<NOT:$<CONFIG:Debug>>:NDEBUG>
++        SPDLOG_ACTIVE_LEVEL=${SPDLOG_MIN_CUTOFF}
++        $<$<BOOL:${GFX_DEBUG_DISASSEMBLER}>:GFX_DEBUG_DISASSEMBLER>
++    )
+ else()
+     target_compile_definitions(libultraship PRIVATE
+         ENABLE_OPENGL
+diff --git a/src/fast/CMakeLists.txt b/src/fast/CMakeLists.txt
+index 66bf70d..16e4163 100644
+--- a/src/fast/CMakeLists.txt
++++ b/src/fast/CMakeLists.txt
+@@ -39,5 +39,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+     list(FILTER Source_Files__Graphic EXCLUDE REGEX "graphic/Fast3D/backends/gfx_opengl*")
+ endif()
+ 
++if (CMAKE_SYSTEM_NAME STREQUAL "watchOS")
++    list(FILTER Source_Files__Graphic EXCLUDE REGEX "backends/gfx_(metal|opengl|sdl2)")
++endif()
++
+ source_group("graphic" FILES ${Source_Files__Graphic})
+ target_sources(libultraship PRIVATE ${Source_Files__Graphic})
+diff --git a/src/fast/Fast3dGui.cpp b/src/fast/Fast3dGui.cpp
+index 237a502..c1966ba 100644
+--- a/src/fast/Fast3dGui.cpp
++++ b/src/fast/Fast3dGui.cpp
+@@ -10,7 +10,7 @@
+ #include "ship/window/gui/resource/GuiTextureFactory.h"
+ #include "ship/resource/File.h"
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+ #include <SDL_hints.h>
+ #include <SDL_video.h>
+ #include <imgui_impl_metal.h>
+@@ -94,7 +94,7 @@ void Fast3dGui::ImGuiWMInit() {
+             }
+             ImGui_ImplSDL2_InitForOpenGL(static_cast<SDL_Window*>(mImpl.Opengl.Window), mImpl.Opengl.Context);
+             break;
+-#if __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+         case WindowBackend::FAST3D_SDL_METAL:
+             SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "1");
+             if (Ship::Context::GetRawInstance()->GetConsoleVariables()->GetInteger(CVAR_ALLOW_BACKGROUND_INPUTS, 1)) {
+@@ -123,7 +123,7 @@ void Fast3dGui::ImGuiWMShutdown() {
+             ImGui_ImplSDL2_Shutdown();
+             break;
+ #endif
+-#if __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+         case WindowBackend::FAST3D_SDL_METAL:
+             ImGui_ImplSDL2_Shutdown();
+             break;
+@@ -144,7 +144,7 @@ void Fast3dGui::ImGuiBackendInit() {
+     switch (mImpl.Backend) {
+ #ifdef ENABLE_OPENGL
+         case WindowBackend::FAST3D_SDL_OPENGL:
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+             ImGui_ImplOpenGL3_Init("#version 410 core");
+ #elif USE_OPENGLES
+             ImGui_ImplOpenGL3_Init("#version 300 es");
+@@ -154,7 +154,7 @@ void Fast3dGui::ImGuiBackendInit() {
+             break;
+ #endif
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+         case WindowBackend::FAST3D_SDL_METAL: {
+             GfxRenderingAPIMetal* api = (GfxRenderingAPIMetal*)mInterpreter.lock()->GetCurrentRenderingAPI();
+             api->MetalInit(mImpl.Metal.Renderer);
+@@ -180,7 +180,7 @@ void Fast3dGui::ImGuiBackendShutdown() {
+             ImGui_ImplOpenGL3_Shutdown();
+             break;
+ #endif
+-#if __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+         case WindowBackend::FAST3D_SDL_METAL:
+             ImGui_ImplMetal_Shutdown();
+             break;
+@@ -209,7 +209,7 @@ void Fast3dGui::ImGuiBackendNewFrame() {
+             break;
+ #endif
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+         case WindowBackend::FAST3D_SDL_METAL: {
+             GfxRenderingAPIMetal* api = (GfxRenderingAPIMetal*)mInterpreter.lock()->GetCurrentRenderingAPI();
+             api->NewFrame();
+@@ -255,7 +255,7 @@ void Fast3dGui::ImGuiRenderDrawData(ImDrawData* data) {
+             break;
+ #endif
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+         case WindowBackend::FAST3D_SDL_METAL: {
+             GfxRenderingAPIMetal* api = (GfxRenderingAPIMetal*)mInterpreter.lock()->GetCurrentRenderingAPI();
+             api->RenderDrawData(data);
+@@ -290,7 +290,7 @@ void Fast3dGui::DrawFloatingWindows() {
+         // Restore GL context for next frame
+         SDL_GL_MakeCurrent(backupCurrentWindow, backupCurrentContext);
+     } else {
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+         // Metal requires additional frame setup to get ImGui ready for drawing floating windows
+         if (mImpl.Backend == WindowBackend::FAST3D_SDL_METAL) {
+             GfxRenderingAPIMetal* api = (GfxRenderingAPIMetal*)mInterpreter.lock()->GetCurrentRenderingAPI();
+diff --git a/src/fast/Fast3dWindow.cpp b/src/fast/Fast3dWindow.cpp
+index 2b77a5f..af35291 100644
+--- a/src/fast/Fast3dWindow.cpp
++++ b/src/fast/Fast3dWindow.cpp
+@@ -15,6 +15,10 @@
+ 
+ #include "fast/Fast3dGui.h"
+ 
++#ifdef LUS_WATCH_PORT
++#include "watch_lus.h"
++#endif
++
+ #include <fstream>
+ 
+ namespace Fast {
+@@ -28,6 +32,9 @@ Fast3dWindow::Fast3dWindow(std::shared_ptr<Ship::Gui> gui, std::shared_ptr<FastM
+     mInterpreter = std::make_shared<Interpreter>();
+     GfxSetInstance(mInterpreter);
+ 
++#ifdef LUS_WATCH_PORT
++    AddAvailableWindowBackend(WATCH_WINDOW_BACKEND);
++#else
+ #ifdef _WIN32
+     AddAvailableWindowBackend(WindowBackend::FAST3D_DXGI_DX11);
+ #endif
+@@ -37,6 +44,7 @@ Fast3dWindow::Fast3dWindow(std::shared_ptr<Ship::Gui> gui, std::shared_ptr<FastM
+     }
+ #endif
+     AddAvailableWindowBackend(WindowBackend::FAST3D_SDL_OPENGL);
++#endif
+ }
+ 
+ Fast3dWindow::Fast3dWindow(std::shared_ptr<Ship::Gui> gui)
+@@ -134,6 +142,11 @@ uint16_t Fast3dWindow::GetPixelDepth(float x, float y) {
+ }
+ 
+ void Fast3dWindow::InitWindowManager() {
++#ifdef LUS_WATCH_PORT
++    SetWindowBackend(WATCH_WINDOW_BACKEND);
++    mRenderingApi = WatchCreateRenderingApi();
++    mWindowManagerApi = WatchCreateWindowBackend();
++#else
+     SetWindowBackend(GetSavedWindowBackend());
+ 
+     switch (GetWindowBackend()) {
+@@ -159,6 +172,7 @@ void Fast3dWindow::InitWindowManager() {
+             SPDLOG_ERROR("Could not load the correct rendering backend");
+             break;
+     }
++#endif
+ }
+ 
+ void Fast3dWindow::SetTextureFilter(FilteringMode filteringMode) {
+@@ -201,6 +215,18 @@ bool Fast3dWindow::DrawAndRunGraphicsCommands(Gfx* commands, const std::unordere
+         return false;
+     }
+ 
++#ifdef LUS_WATCH_PORT
++    // No ImGui on the watch: the game fills the whole window, and the
++    // renderer publishes the game framebuffer itself.
++    mInterpreter->mCurDimensions.width = GetWidth();
++    mInterpreter->mCurDimensions.height = GetHeight();
++    mInterpreter->mGameWindowViewport = { 0, 0, GetWidth(), GetHeight() };
++    mInterpreter->StartFrame();
++    mInterpreter->Run(commands, mtxReplacements);
++    mInterpreter->EndFrame();
++    return true;
++#endif
++
+     auto gui = wnd->GetGui();
+     // Setup mouse state manager
+     wnd->GetMouseStateManager()->StartFrame();
+diff --git a/src/libultraship/libultra/os.cpp b/src/libultraship/libultra/os.cpp
+index c19241a..ad2e5fa 100644
+--- a/src/libultraship/libultra/os.cpp
++++ b/src/libultraship/libultra/os.cpp
+@@ -2,6 +2,10 @@
+ #include <SDL2/SDL.h>
+ #include <ratio>
+ 
++#ifdef LUS_WATCH_PORT
++#include "watch_lus.h"
++#endif
++
+ // Establish a chrono duration for the N64 46.875MHz clock rate
+ typedef std::ratio<3000, 64> n64ClockRatio;
+ typedef std::ratio_divide<std::micro, n64ClockRatio> n64CycleRate;
+@@ -30,6 +34,9 @@ void osContGetReadData(OSContPad* pad) {
+     memset(pad, 0, sizeof(OSContPad) * __osMaxControllers);
+ 
+     Ship::Context::GetRawInstance()->GetControlDeck()->WriteToPad(pad);
++#ifdef LUS_WATCH_PORT
++    WatchApplyInput(&pad->button, &pad->stick_x, &pad->stick_y);
++#endif
+ }
+ 
+ void osSetTime(OSTime time) {
+diff --git a/src/ship/CMakeLists.txt b/src/ship/CMakeLists.txt
+index e37a3a1..c54425e 100644
+--- a/src/ship/CMakeLists.txt
++++ b/src/ship/CMakeLists.txt
+@@ -59,7 +59,7 @@ target_sources(libultraship PRIVATE ${Source_Files__Window__Gui})
+ 
+ file(GLOB_RECURSE Source_Files__Utils RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "utils/*.cpp" "utils/*.c")
+ 
+-if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
++if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "watchOS")
+     list(APPEND Source_Files__Utils ${CMAKE_CURRENT_SOURCE_DIR}/utils/AppleFolderManager.mm)
+ endif()
+ 
+diff --git a/src/ship/audio/Audio.cpp b/src/ship/audio/Audio.cpp
+index 8cc5b12..57add2f 100644
+--- a/src/ship/audio/Audio.cpp
++++ b/src/ship/audio/Audio.cpp
+@@ -1,6 +1,6 @@
+ #include "ship/audio/Audio.h"
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+ #include "ship/audio/CoreAudioAudioPlayer.h"
+ #endif
+ 
+@@ -8,6 +8,10 @@
+ #include "ship/config/Config.h"
+ #include "ship/controller/controldeck/ControlDeck.h"
+ 
++#ifdef LUS_WATCH_PORT
++#include "watch_lus.h"
++#endif
++
+ namespace Ship {
+ 
+ Audio::~Audio() {
+@@ -15,13 +19,18 @@ Audio::~Audio() {
+ }
+ 
+ void Audio::InitAudioPlayer() {
++#ifdef LUS_WATCH_PORT
++    mAudioPlayer = WatchCreateAudioPlayer(this->mAudioSettings);
++    mAudioPlayer->Init();
++    return;
++#endif
+     switch (GetCurrentAudioBackend()) {
+ #ifdef _WIN32
+         case AudioBackend::WASAPI:
+             mAudioPlayer = std::make_shared<WasapiAudioPlayer>(this->mAudioSettings);
+             break;
+ #endif
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+         case AudioBackend::COREAUDIO:
+             mAudioPlayer = std::make_shared<CoreAudioAudioPlayer>(this->mAudioSettings);
+             break;
+@@ -48,7 +57,7 @@ void Audio::Init() {
+ #ifdef _WIN32
+     mAvailableAudioBackends->push_back(AudioBackend::WASAPI);
+ #endif
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+     mAvailableAudioBackends->push_back(AudioBackend::COREAUDIO);
+ #endif
+     mAvailableAudioBackends->push_back(AudioBackend::SDL);
+@@ -97,7 +106,7 @@ AudioBackend Audio::GetSavedAudioBackend() {
+     return AudioBackend::WASAPI;
+ #endif
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__WATCHOS__)
+     return AudioBackend::COREAUDIO;
+ #endif
+ 

@@ -1,10 +1,13 @@
 # XcodeGen spec for the watch app. Generate the Xcode project with:
 #   cd app && xcodegen
 #
-# Two apps share the Swift code and the port layer:
-#   RetroWatch      the game; build tools/build-game.sh first, which makes
+# Three apps share the Swift code; the first two also share the port layer:
+#   RetroWatch      Super Mario 64; build tools/build-game.sh first, which makes
 #                   build/watch/<sdk>/libsm64.a from your own ROM
 #   RetroWatchDemo  a test scene that needs no game data
+#   RetroWatchOoT   Ocarina of Time; build tools/build-oot.sh first, which makes
+#                   build/watch/<sdk>/liboot.a and build/oot/assets/*.o2r from
+#                   your own ROM (its port layer is inside liboot.a)
 name: RetroWatch
 options:
   bundleIdPrefix: com.thestouch
@@ -24,7 +27,6 @@ targetTemplates:
     sources:
       - path: RetroWatch
       - path: ../port/include
-      - path: ../port/src
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -49,6 +51,8 @@ targetTemplates:
 targets:
   RetroWatch:
     templates: [WatchApp]
+    sources:
+      - path: ../port/src
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.thestouch.retrowatch
@@ -59,6 +63,7 @@ targets:
   RetroWatchDemo:
     templates: [WatchApp]
     sources:
+      - path: ../port/src
       - path: ../port/demo
       # The N64 display list interpreter, used as-is from the PC port.
       # (The game build carries its own copy inside libsm64.a.)
@@ -71,3 +76,22 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: RetroWatch Demo
         # gfx_pc.c is upstream code; its warnings are not ours to fix.
         WARNING_CFLAGS: -Wno-unused-variable
+
+  RetroWatchOoT:
+    templates: [WatchApp]
+    sources:
+      # The game's data, extracted from your ROM by tools/build-oot.sh.
+      - path: ../build/oot/assets/oot.o2r
+        buildPhase: resources
+        optional: true
+      - path: ../build/oot/assets/soh.o2r
+        buildPhase: resources
+        optional: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.thestouch.retrowatch.oot
+        PRODUCT_NAME: RetroWatchOoT
+        INFOPLIST_KEY_CFBundleDisplayName: Ocarina
+        # 64-bit watches only for now (liboot.a has no arm64_32 slice).
+        ARCHS: arm64
+        OTHER_LDFLAGS: $(SRCROOT)/../build/watch/$(PLATFORM_NAME)/liboot.a -lz -lbz2 -lc++

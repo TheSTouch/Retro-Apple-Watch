@@ -2,3 +2,7 @@
 	path = external/sm64-port
 	url = https://github.com/sm64-port/sm64-port.git
 	ignore = dirty
+[submodule "external/Shipwright"]
+	path = external/Shipwright
+	url = https://github.com/HarbourMasters/Shipwright.git
+	ignore = dirty

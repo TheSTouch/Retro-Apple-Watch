@@ -42,8 +42,10 @@ void watch_port_init(const char *data_dir);
 // Runs one game frame (game logic, rendering and audio generation).
 void watch_port_run_frame(void);
 
-// How often to call watch_port_run_frame(), in Hz: 25 for PAL (European)
-// builds, 30 otherwise. Game speed and audio pitch depend on getting it right.
+// How often to call watch_port_run_frame(), in Hz. Super Mario 64: 25 for PAL
+// (European) builds, 30 otherwise. Ocarina of Time changes it as it goes (60
+// in menus, 20 in play), so callers read it before every frame. Game speed
+// and audio depend on getting it right.
 int watch_port_frame_rate(void);
 
 // Copies the latest finished frame into dst (WATCH_FB_WIDTH * WATCH_FB_HEIGHT

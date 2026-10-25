@@ -48,7 +48,6 @@ final class GameCore: ObservableObject {
     }
 
     private func loop() {
-        let framePeriod = 1.0 / Double(watch_port_frame_rate())
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
         var lastSeq: UInt32 = 0
         var nextTick = Date.timeIntervalSinceReferenceDate
@@ -63,7 +62,8 @@ final class GameCore: ObservableObject {
                 DispatchQueue.main.async { self.frame = image }
             }
 
-            nextTick += framePeriod
+            // Read every frame: Ocarina of Time switches between 60 and 20.
+            nextTick += 1.0 / Double(watch_port_frame_rate())
             let now = Date.timeIntervalSinceReferenceDate
             if nextTick > now {
                 Thread.sleep(forTimeInterval: nextTick - now)
