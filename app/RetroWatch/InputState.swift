@@ -14,6 +14,8 @@ final class InputState {
     private var touchStick = CGVector.zero // -1...1 on each axis
     private var timed: [UInt16: Int] = [:] // button -> frames left to hold it
     private var heldButtons: UInt16 = 0     // held as long as the finger stays
+    private var gamepadButtons: UInt16 = 0  // from a controller via the RetroPad bridge
+    private var gamepadStick = CGVector.zero
 
     // Called from the main thread.
 
@@ -31,6 +33,14 @@ final class InputState {
         lock.withLock { heldButtons = buttons }
     }
 
+    /// A game controller's state, already in N64 terms (any thread).
+    func setGamepad(buttons: UInt16, stick: CGVector) {
+        lock.withLock {
+            gamepadButtons = buttons
+            gamepadStick = stick
+        }
+    }
+
     func crownTurned(by delta: Double) {
         guard abs(delta) > 0.01 else { return }
         press(delta > 0 ? WATCH_BTN_C_RIGHT : WATCH_BTN_C_LEFT, frames: 3)
@@ -43,7 +53,10 @@ final class InputState {
         var stick = CGVector.zero
         lock.withLock {
             stick = touchStick
-            buttons |= heldButtons
+            if abs(gamepadStick.dx) + abs(gamepadStick.dy) > abs(stick.dx) + abs(stick.dy) {
+                stick = gamepadStick
+            }
+            buttons |= heldButtons | gamepadButtons
             for (button, frames) in timed {
                 buttons |= button
                 timed[button] = frames > 1 ? frames - 1 : nil

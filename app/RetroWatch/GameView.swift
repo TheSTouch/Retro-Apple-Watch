@@ -70,6 +70,9 @@ struct GameView: View {
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX, y: rect.minY)
                 }
+                // Above the game on the left; the system clock is on the right.
+                PadStatusLabel(status: core.padStatus)
+                    .offset(x: 12, y: max(4, layout.game.minY / 2 - 8))
             }
             .contentShape(Rectangle())
             .gesture(touchGesture(layout))
@@ -170,5 +173,37 @@ struct GameView: View {
                     core.input.press(WATCH_BTN_START)
                 }
             }
+    }
+}
+
+/// Whether a game controller is reachable through the RetroPad bridge.
+private struct PadStatusLabel: View {
+    let status: PadBridge.Status
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "gamecontroller.fill")
+            Text(text)
+        }
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(color)
+    }
+
+    private var text: String {
+        switch status {
+        case .unavailable: "Bluetooth off"
+        case .searching: "Searching…"
+        case .noController: "No controller"
+        case .connected: "Controller"
+        }
+    }
+
+    private var color: Color {
+        switch status {
+        case .unavailable: .red
+        case .searching: .secondary
+        case .noController: .orange
+        case .connected: .green
+        }
     }
 }

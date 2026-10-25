@@ -18,3 +18,8 @@ xcuserdata/
 
 # macOS
 .DS_Store
+
+# ESP32 bridge firmware build output (PlatformIO / ESP-IDF)
+bridge/*/.pio/
+bridge/*/sdkconfig.*
+!bridge/*/sdkconfig.defaults

@@ -5,9 +5,11 @@ import Foundation
 /// and publishes finished frames.
 final class GameCore: ObservableObject {
     @Published private(set) var frame: CGImage?
+    @Published private(set) var padStatus = PadBridge.Status.searching
 
     let input = InputState()
     private let audio = AudioOutput()
+    private lazy var padBridge = PadBridge(input: input) { [weak self] in self?.padStatus = $0 }
 
     private let width = Int(WATCH_FB_WIDTH)
     private let height = Int(WATCH_FB_HEIGHT)
@@ -18,6 +20,7 @@ final class GameCore: ObservableObject {
     init() {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         watch_port_init(documents.path)
+        _ = padBridge // start looking for a RetroPad bridge
     }
 
     func setActive(_ active: Bool) {

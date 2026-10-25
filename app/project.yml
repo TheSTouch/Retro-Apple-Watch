@@ -29,6 +29,7 @@ targetTemplates:
       base:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_WKWatchOnly: YES
+        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: Connects to a RetroPad bridge so you can play with a game controller.
         SWIFT_OBJC_BRIDGING_HEADER: RetroWatch/RetroWatch-Bridging-Header.h
         HEADER_SEARCH_PATHS:
           - $(SRCROOT)/../port/include
