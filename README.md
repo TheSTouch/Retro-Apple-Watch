@@ -4,7 +4,7 @@ Running Nintendo 64 games natively on an Apple Watch, starting with **Super Mari
 
 This isn't an emulator. watchOS doesn't let apps generate code at runtime (no JIT), so a classic N64 emulator would be far too slow. Instead, the project builds the game from the community [decompilation](https://github.com/n64decomp/sm64) as ordinary C code, compiles it for the watch, and adds a small platform layer for graphics, sound and controls.
 
-> **Status: early.** The graphics pipeline runs on the watch simulator with a test scene. Next up is building the game itself against it.
+> **Status: early, but it runs.** Super Mario 64 builds for watchOS and plays in the Apple Watch simulator. Real watches haven't been tried yet, and performance there is the big unknown.
 
 ## How it works
 
@@ -30,24 +30,42 @@ The renderer draws the N64's native 320×240 on the CPU. The watch scales the pi
 
 | Path | What's in it |
 |---|---|
-| `port/` | The watchOS platform layer (C): renderer, audio, input, test scene |
+| `port/src/` | The watchOS platform layer (C): renderer, audio, input |
+| `port/game/` | Game glue: per-frame entry point and controller calls (built into the game library) |
+| `port/demo/` | A test scene that needs no game data |
 | `app/` | The SwiftUI watch app and its [XcodeGen](https://github.com/yonaskolb/XcodeGen) project spec |
 | `tools/render-preview/` | Runs the core on a Mac and writes a frame to an image, for quick renderer checks |
+| `tools/build-game.sh` | Builds the game from your ROM into `build/watch/<sdk>/libsm64.a` |
 | `tools/watch-cc.sh`, `tools/watch-ar.sh` | Wrappers that let the decomp's Makefile build for the watch |
 | `external/sm64-port/` | The [SM64 PC port](https://github.com/sm64-port/sm64-port), as a submodule |
 
 ## Getting started
 
-Requirements: a Mac with Xcode 26+ and the watchOS SDK, plus `brew install xcodegen`.
+Requirements: a Mac with Xcode 26+ and the watchOS SDK, plus a few tools:
+
+```sh
+brew install xcodegen make aarch64-elf-binutils
+```
+
+(`make` installs GNU make 4 as `gmake`, since macOS ships 3.81. `aarch64-elf-binutils` provides the GNU assembler the decomp needs for one sound file.)
 
 ```sh
 git clone --recursive https://github.com/TheSTouch/Retro-Apple-Watch.git
-cd Retro-Apple-Watch/app
-xcodegen
-open RetroWatch.xcodeproj
+cd Retro-Apple-Watch
+
+# 1. Put your ROM in place (see "Game data" below), then build the game:
+tools/build-game.sh eu simulator      # or us / jp; "device" for real watches
+
+# 2. Generate and open the Xcode project:
+cd app && xcodegen && open RetroWatch.xcodeproj
 ```
 
-Pick the **RetroWatch** scheme and an Apple Watch simulator, then run. You'll see the test scene, a spinning textured cube. Drag to spin it, tap to switch the texture on and off.
+There are two schemes:
+
+- **RetroWatch** is the game. It needs step 1.
+- **RetroWatchDemo** is a spinning test cube that needs no game data. Drag to spin it, tap to switch the texture.
+
+Pick a scheme and an Apple Watch simulator, then run.
 
 To check renderer changes without the simulator:
 
@@ -88,7 +106,7 @@ B, Z, R and Start don't have a mapping yet. Bluetooth gamepads would solve this,
 - [x] SwiftUI watch app with touch, Digital Crown and audio plumbing
 - [x] Test scene running on the watchOS simulator
 - [x] Asset extraction from a user-supplied ROM
-- [ ] Build the game as a static library for the watch and run it in the simulator
+- [x] Build the game as a static library for the watch and run it in the simulator
 - [ ] Run on a real watch and profile the renderer (the main performance risk)
 - [ ] Design touch controls that work for actual gameplay
 - [ ] Save files, pausing when the wrist drops, battery behavior

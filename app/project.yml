@@ -1,5 +1,10 @@
 # XcodeGen spec for the watch app. Generate the Xcode project with:
 #   cd app && xcodegen
+#
+# Two apps share the Swift code and the port layer:
+#   RetroWatch      the game; build tools/build-game.sh first, which makes
+#                   build/watch/<sdk>/libsm64.a from your own ROM
+#   RetroWatchDemo  a test scene that needs no game data
 name: RetroWatch
 options:
   bundleIdPrefix: com.thestouch
@@ -11,24 +16,18 @@ settings:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1"
     CURRENT_PROJECT_VERSION: "1"
-targets:
-  RetroWatch:
+
+targetTemplates:
+  WatchApp:
     type: application
     platform: watchOS
     sources:
       - path: RetroWatch
-      - path: ../port
-        excludes:
-          - "**/*.md"
-      # The N64 display list interpreter, used as-is from the PC port.
-      - path: ../external/sm64-port/src/pc/gfx/gfx_pc.c
-      - path: ../external/sm64-port/src/pc/gfx/gfx_cc.c
+      - path: ../port/include
+      - path: ../port/src
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.thestouch.retrowatch
-        PRODUCT_NAME: RetroWatch
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: RetroWatch
         INFOPLIST_KEY_WKWatchOnly: YES
         SWIFT_OBJC_BRIDGING_HEADER: RetroWatch/RetroWatch-Bridging-Header.h
         HEADER_SEARCH_PATHS:
@@ -44,6 +43,30 @@ targets:
           - AVOID_UB
         GCC_C_LANGUAGE_STANDARD: gnu11
         GCC_OPTIMIZATION_LEVEL: "3"
+        CODE_SIGN_STYLE: Automatic
+
+targets:
+  RetroWatch:
+    templates: [WatchApp]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.thestouch.retrowatch
+        PRODUCT_NAME: RetroWatch
+        INFOPLIST_KEY_CFBundleDisplayName: RetroWatch
+        OTHER_LDFLAGS: $(SRCROOT)/../build/watch/$(PLATFORM_NAME)/libsm64.a
+
+  RetroWatchDemo:
+    templates: [WatchApp]
+    sources:
+      - path: ../port/demo
+      # The N64 display list interpreter, used as-is from the PC port.
+      # (The game build carries its own copy inside libsm64.a.)
+      - path: ../external/sm64-port/src/pc/gfx/gfx_pc.c
+      - path: ../external/sm64-port/src/pc/gfx/gfx_cc.c
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.thestouch.retrowatch.demo
+        PRODUCT_NAME: RetroWatchDemo
+        INFOPLIST_KEY_CFBundleDisplayName: RetroWatch Demo
         # gfx_pc.c is upstream code; its warnings are not ours to fix.
         WARNING_CFLAGS: -Wno-unused-variable
-        CODE_SIGN_STYLE: Automatic
