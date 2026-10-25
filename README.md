@@ -4,7 +4,7 @@ Running Nintendo 64 games natively on an Apple Watch, starting with **Super Mari
 
 This isn't an emulator. watchOS doesn't let apps generate code at runtime (no JIT), so a classic N64 emulator would be far too slow. Instead, the project builds the game from the community [decompilation](https://github.com/n64decomp/sm64) as ordinary C code, compiles it for the watch, and adds a small platform layer for graphics, sound and controls.
 
-> **Status: early, but it runs.** Super Mario 64 builds for watchOS and plays in the Apple Watch simulator. Real watches haven't been tried yet, and performance there is the big unknown.
+> **Status: proof of concept.** Super Mario 64 builds for watchOS and runs at full speed on a real Apple Watch Ultra 3 (about 30 ms per frame against a 40 ms budget for the PAL version), with sound. The controls are a first attempt: playable, but not comfortable yet.
 
 <p align="center">
   <img src="docs/images/demo-simulator.png" width="240" alt="The test scene, a spinning checkered cube, running in the Apple Watch simulator">
@@ -118,6 +118,16 @@ The watch screen tracks only one finger, so controls are a design problem in the
 
 The game is 4:3, so on the watch's taller screen there's room for a button bar below it. watchOS tracks only one finger, which is why buttons are reached by sliding rather than with a second finger. R and C-up/C-down don't have a mapping yet. (watchOS's double-tap pinch was tried for jumping, but it lags about two seconds and doesn't fire while the screen is touched.)
 
+## Help wanted: controls
+
+The port runs well. What it really needs now is a good way to *play* on a one-finger, 46 mm screen. Ideas, experiments and pull requests are very welcome. Some known problems and leads:
+
+- **Sliding onto a button pulls the stick backwards.** On the way down to the bar the finger is still on the game area, so the stick follows it downwards. Fixes might use the stick from a moment before the finger reached the bar, or ignore fast downward slides.
+- **R and C-up / C-down have no input yet.** The space above the game is free, and the Digital Crown could do double duty.
+- **Game controllers.** watchOS has no GameController framework. Bluetooth LE controllers with their own protocol could work through Core Bluetooth (the standard HID profile is blocked for apps). Another route is a controller paired with the iPhone, with a companion app relaying its input to the watch; nobody has measured the latency yet.
+- **The double-tap pinch** (watchOS's hand gesture) was tried for jumping. It lags about two seconds and doesn't fire while the screen is touched.
+- **Wrist tilt** as the stick, via the motion sensors, hasn't been tried.
+
 ## Roadmap
 
 - [x] Software renderer implementing the PC port's rendering interface
@@ -125,7 +135,7 @@ The game is 4:3, so on the watch's taller screen there's room for a button bar b
 - [x] Test scene running on the watchOS simulator
 - [x] Asset extraction from a user-supplied ROM
 - [x] Build the game as a static library for the watch and run it in the simulator
-- [ ] Run on a real watch and profile the renderer (the main performance risk)
+- [x] Run on a real watch at full speed (Apple Watch Ultra 3)
 - [ ] Design touch controls that work for actual gameplay
 - [ ] Save files, pausing when the wrist drops, battery behavior
 
