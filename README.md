@@ -1,0 +1,98 @@
+# Retro Apple Watch
+
+Running Nintendo 64 games natively on an Apple Watch, starting with **Super Mario 64**.
+
+This isn't an emulator. watchOS doesn't let apps generate code at runtime (no JIT), so a classic N64 emulator would be far too slow. Instead, the project builds the game from the community [decompilation](https://github.com/n64decomp/sm64) as ordinary C code, compiles it for the watch, and adds a small platform layer for graphics, sound and controls.
+
+> **Status: early.** The graphics pipeline runs on the watch simulator with a test scene. Next up is building the game itself against it.
+
+## How it works
+
+```
+ Super Mario 64 decomp (C)          ← external/sm64-port (git submodule)
+        │  N64 display lists
+        ▼
+ gfx_pc.c  (display list → triangles, from the PC port)
+        │
+        ▼
+ port/     ← this repo
+   gfx_soft.c     software rasterizer (watchOS has no OpenGL or Vulkan)
+   audio_watch.c  ring buffer → AVAudioEngine
+   input_watch.c  touch / Digital Crown → N64 controller state
+        │  320×240 frame, 30 fps
+        ▼
+ app/      SwiftUI watch app: shows frames, handles input and audio
+```
+
+The renderer draws the N64's native 320×240 on the CPU. The watch scales the picture up to fit the screen.
+
+## Repository layout
+
+| Path | What's in it |
+|---|---|
+| `port/` | The watchOS platform layer (C): renderer, audio, input, test scene |
+| `app/` | The SwiftUI watch app and its [XcodeGen](https://github.com/yonaskolb/XcodeGen) project spec |
+| `tools/render-preview/` | Runs the core on a Mac and writes a frame to an image, for quick renderer checks |
+| `tools/watch-cc.sh`, `tools/watch-ar.sh` | Wrappers that let the decomp's Makefile build for the watch |
+| `external/sm64-port/` | The [SM64 PC port](https://github.com/sm64-port/sm64-port), as a submodule |
+
+## Getting started
+
+Requirements: a Mac with Xcode 26+ and the watchOS SDK, plus `brew install xcodegen`.
+
+```sh
+git clone --recursive https://github.com/TheSTouch/Retro-Apple-Watch.git
+cd Retro-Apple-Watch/app
+xcodegen
+open RetroWatch.xcodeproj
+```
+
+Pick the **RetroWatch** scheme and an Apple Watch simulator, then run. You'll see the test scene, a spinning textured cube. Drag to spin it, tap to switch the texture on and off.
+
+To check renderer changes without the simulator:
+
+```sh
+tools/render-preview/build.sh
+build/render-preview build/frame.ppm 60
+```
+
+## Game data: bring your own
+
+This repository contains **no Nintendo code or assets** and never will. To build the game you need your own copy of Super Mario 64, preferably dumped from a cartridge you own. The decomp's build extracts the assets it needs from that file on your machine.
+
+Supported versions, checked by SHA-1:
+
+| Version | SHA-1 |
+|---|---|
+| US | `9bef1128717f958171a4afac3ed78ee2bb4e86ce` |
+| Europe | `4ac5721683d0e0b6bbb561b58a71740845dceea9` |
+| Japan | `8a20a5c83d6ceb0f0506cfc9fa20d8f438cafe51` |
+
+Place it at `external/sm64-port/baserom.<us|eu|jp>.z64`. ROM files are git-ignored everywhere in this repo.
+
+## Controls (first pass)
+
+The watch screen tracks only one finger, so controls are a design problem in their own right.
+
+| Input | N64 |
+|---|---|
+| Drag anywhere | Analog stick |
+| Tap | A |
+| Digital Crown | Camera (C-left / C-right) |
+
+B, Z, R and Start don't have a mapping yet. Bluetooth gamepads would solve this, but watchOS has no GameController framework.
+
+## Roadmap
+
+- [x] Software renderer implementing the PC port's rendering interface
+- [x] SwiftUI watch app with touch, Digital Crown and audio plumbing
+- [x] Test scene running on the watchOS simulator
+- [x] Asset extraction from a user-supplied ROM
+- [ ] Build the game as a static library for the watch and run it in the simulator
+- [ ] Run on a real watch and profile the renderer (the main performance risk)
+- [ ] Design touch controls that work for actual gameplay
+- [ ] Save files, pausing when the wrist drops, battery behavior
+
+## Legal
+
+Super Mario 64 is © Nintendo. This is a non-commercial hobby project and is not affiliated with or endorsed by Nintendo. The code in this repository is MIT licensed (see `LICENSE`). The decompilation and the PC port are separate projects under their own terms.

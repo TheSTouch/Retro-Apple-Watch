@@ -1,0 +1,63 @@
+// C interface between the watchOS app (Swift) and the game core.
+//
+// The game core runs on one dedicated thread that calls watch_port_run_frame()
+// at 30 Hz. Every other function here is safe to call from any thread.
+
+#ifndef WATCH_PORT_H
+#define WATCH_PORT_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Internal render resolution. The N64 drew 320x240; the watch scales it up.
+#define WATCH_FB_WIDTH 320
+#define WATCH_FB_HEIGHT 240
+
+// N64 controller button bits, as the game reads them from OSContPad.button.
+enum {
+    WATCH_BTN_A       = 0x8000,
+    WATCH_BTN_B       = 0x4000,
+    WATCH_BTN_Z       = 0x2000,
+    WATCH_BTN_START   = 0x1000,
+    WATCH_BTN_D_UP    = 0x0800,
+    WATCH_BTN_D_DOWN  = 0x0400,
+    WATCH_BTN_D_LEFT  = 0x0200,
+    WATCH_BTN_D_RIGHT = 0x0100,
+    WATCH_BTN_L       = 0x0020,
+    WATCH_BTN_R       = 0x0010,
+    WATCH_BTN_C_UP    = 0x0008,
+    WATCH_BTN_C_DOWN  = 0x0004,
+    WATCH_BTN_C_LEFT  = 0x0002,
+    WATCH_BTN_C_RIGHT = 0x0001,
+};
+
+// Starts the core. data_dir is a writable directory for save files.
+void watch_port_init(const char *data_dir);
+
+// Runs one game frame (game logic, rendering and audio generation).
+void watch_port_run_frame(void);
+
+// Copies the latest finished frame into dst (WATCH_FB_WIDTH * WATCH_FB_HEIGHT
+// pixels, 4 bytes each, RGBX order). Returns a counter that increases with
+// every finished frame, so callers can skip frames they already have.
+uint32_t watch_port_copy_frame(uint8_t *dst);
+
+// Controller state: a WATCH_BTN_* bitmask and the analog stick (-80..80 is
+// the range a real N64 stick reaches).
+void watch_input_set(uint16_t buttons, int8_t stick_x, int8_t stick_y);
+
+// Audio produced by the core: signed 16-bit stereo, interleaved.
+int watch_audio_sample_rate(void);
+// Fills up to `frames` stereo frames and returns how many were available;
+// the caller pads the rest with silence.
+size_t watch_audio_pull(int16_t *dst, size_t frames);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
