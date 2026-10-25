@@ -1,10 +1,12 @@
 # Retro Apple Watch
 
-Running Nintendo 64 games natively on an Apple Watch, starting with **Super Mario 64**.
+Running Nintendo 64 games natively on an Apple Watch: **Super Mario 64** and **The Legend of Zelda: Ocarina of Time**.
 
-This isn't an emulator. watchOS doesn't let apps generate code at runtime (no JIT), so a classic N64 emulator would be far too slow. Instead, the project builds the game from the community [decompilation](https://github.com/n64decomp/sm64) as ordinary C code, compiles it for the watch, and adds a small platform layer for graphics, sound and controls.
+This isn't an emulator. watchOS doesn't let apps generate code at runtime (no JIT), so a classic N64 emulator would be far too slow. Instead, the project builds each game from its community decompilation as ordinary C code, compiles it for the watch, and adds a small platform layer for graphics, sound and controls. That also means each game is its own port: a different ROM doesn't run in the app by itself.
 
 > **Status: proof of concept.** Super Mario 64 builds for watchOS and runs at full speed on a real Apple Watch Ultra 3 (about 30 ms per frame against a 40 ms budget for the PAL version), with sound. The controls are a first attempt: playable, but not comfortable yet.
+>
+> **Ocarina of Time** (through [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright)) runs on the Ultra 3 with sound. In play the game runs at 20 frames per second and a frame takes about 35 ms against a 50 ms budget. The title screen and menus ask for 60 frames per second, which the watch can't reach yet; they run slower, while the music keeps its tempo.
 
 <p align="center">
   <img src="docs/images/demo-simulator.png" width="240" alt="The test scene, a spinning checkered cube, running in the Apple Watch simulator">
@@ -32,6 +34,25 @@ This isn't an emulator. watchOS doesn't let apps generate code at runtime (no JI
 
 The renderer draws the N64's native 320×240 on the CPU. The watch scales the picture up to fit the screen.
 
+Ocarina of Time goes through Ship of Harkinian, a PC port of the OoT decomp built on [libultraship](https://github.com/Kenix3/libultraship). The watch supplies libultraship's backends:
+
+```
+ Ocarina of Time decomp (C)         ← external/Shipwright (git submodule)
+        │  N64 display lists
+        ▼
+ libultraship  (display list → triangles, game data, audio mixer)
+        │
+        ▼
+ port/oot/   ← this repo
+   gfx_soft_lus.cpp        software rasterizer (the GL backend's semantics)
+   wm_watch_lus.cpp        fixed 320×240 window, no ImGui menus
+   platform_watch_lus.cpp  audio ring buffer, controller state
+   game_main_oot.cpp       one frame at a time for the app
+        │  320×240 frame, 20 fps in play (60 in menus)
+        ▼
+ app/      the same SwiftUI watch app (RetroWatchOoT target)
+```
+
 ## Repository layout
 
 | Path | What's in it |
@@ -39,14 +60,18 @@ The renderer draws the N64's native 320×240 on the CPU. The watch scales the pi
 | `port/src/` | The watchOS platform layer (C): renderer, audio, input |
 | `port/game/` | Game glue: per-frame entry point and controller calls (built into the game library) |
 | `port/demo/` | A test scene that needs no game data |
+| `port/oot/` | Ocarina of Time: libultraship backends (renderer, window, audio, input), the game glue, and the watchOS build of its dependencies |
 | `bridge/esp32-pad/` | ESP32 firmware that relays a Bluetooth game controller to the watch |
 | `docs/` | [Limitations and findings](docs/limitations.md), [Xbox controller notes](docs/xbox-controller.md) |
 | `patches/` | Small hooks into the decomp, applied by `build-game.sh` (e.g. tap-to-point in the file select) |
+| `patches/oot/` | The watchOS changes to Ship of Harkinian and libultraship, applied by `build-oot.sh` |
 | `app/` | The SwiftUI watch app and its [XcodeGen](https://github.com/yonaskolb/XcodeGen) project spec |
 | `tools/render-preview/` | Runs the core on a Mac and writes a frame to an image, for quick renderer checks |
 | `tools/build-game.sh` | Builds the game from your ROM into `build/watch/<sdk>/libsm64.a` |
+| `tools/build-oot.sh` | Builds Ocarina of Time into `build/watch/<sdk>/liboot.a`, and its data into `build/oot/assets/` |
 | `tools/watch-cc.sh`, `tools/watch-ar.sh` | Wrappers that let the decomp's Makefile build for the watch |
 | `external/sm64-port/` | The [SM64 PC port](https://github.com/sm64-port/sm64-port), as a submodule |
+| `external/Shipwright/` | [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright), as a submodule (with libultraship inside) |
 
 ## Getting started
 
@@ -69,9 +94,10 @@ tools/build-game.sh eu simulator      # or us / jp; "device" for real watches
 cd app && xcodegen && open RetroWatch.xcodeproj
 ```
 
-There are two schemes:
+There are three schemes:
 
-- **RetroWatch** is the game. It needs step 1.
+- **RetroWatch** is Super Mario 64. It needs step 1.
+- **RetroWatchOoT** is Ocarina of Time (see below).
 - **RetroWatchDemo** is a spinning test cube that needs no game data. Drag to spin it, tap to switch the texture.
 
 Pick a scheme and an Apple Watch simulator, then run.
@@ -91,6 +117,23 @@ tools/build-game.sh eu device          # arm64 + arm64_32, covers current and ol
 
 In Xcode, select the **RetroWatch** target, pick your team under *Signing & Capabilities*, choose your watch as the run destination, and run. The watch must be paired with an iPhone that's connected to the Mac, and have Developer Mode on (*Settings → Privacy & Security*).
 
+### Ocarina of Time
+
+```sh
+brew install cmake ninja
+# Put your ROM in external/Shipwright/roms/ (see "Game data" below), then:
+tools/build-oot.sh simulator           # or "device" (64-bit watches only for now)
+cd app && xcodegen && open RetroWatch.xcodeproj
+```
+
+The first run builds Ship of Harkinian's asset tools for the Mac and turns your ROM into `oot.o2r`, which the app bundles next to `soh.o2r`. Then pick the **RetroWatchOoT** scheme. Saves and settings live in the app's *Application Support/OcarinaOfTime*, along with `frame-times.log`, which records frame and audio timings every 100 frames.
+
+`tools/build-oot.sh mac` builds the game for the Mac with the watch's renderer, to check pictures and speed without a watch. It needs Ship of Harkinian's Mac dependencies (see the script), then:
+
+```sh
+cd build/oot/mac/soh && WATCH_PREVIEW_DIR=/tmp/frames WATCH_PREVIEW_FRAMES=600 ./soh-macos
+```
+
 ## Game data: bring your own
 
 This repository contains **no Nintendo code or assets** and never will. To build the game you need your own copy of Super Mario 64, preferably dumped from a cartridge you own. The decomp's build extracts the assets it needs from that file on your machine.
@@ -104,6 +147,8 @@ Supported versions, checked by SHA-1:
 | Japan | `8a20a5c83d6ceb0f0506cfc9fa20d8f438cafe51` |
 
 Place it at `external/sm64-port/baserom.<us|eu|jp>.z64`. ROM files are git-ignored everywhere in this repo.
+
+For Ocarina of Time, use any version [Ship of Harkinian supports](https://github.com/HarbourMasters/Shipwright/blob/develop/docs/supportedHashes.json): the N64 NTSC 1.0–1.2 and PAL 1.0/1.1 releases, the GameCube releases, and Master Quest (only `oot.o2r` is bundled for now, so a Master Quest ROM isn't usable yet). Place it in `external/Shipwright/roms/` as a `.z64` file. PAL 1.0 is the one tested on the watch.
 
 ## Controls (first pass)
 
@@ -158,9 +203,12 @@ The port runs well. What it really needs now is a good way to *play* on a one-fi
 - [x] Asset extraction from a user-supplied ROM
 - [x] Build the game as a static library for the watch and run it in the simulator
 - [x] Run on a real watch at full speed (Apple Watch Ultra 3)
+- [x] Ocarina of Time through Ship of Harkinian, in the simulator and on the Ultra 3
+- [ ] A faster renderer, so Ocarina of Time's 60 fps title screen and menus run at full speed
+- [ ] Ocarina of Time on 32-bit watches (`arm64_32`) and controls of its own (C buttons, R)
 - [ ] Design touch controls that work for actual gameplay
 - [ ] Save files, pausing when the wrist drops, battery behavior
 
 ## Legal
 
-Super Mario 64 is © Nintendo. This is a non-commercial hobby project and is not affiliated with or endorsed by Nintendo. The code in this repository is MIT licensed (see `LICENSE`). The decompilation and the PC port are separate projects under their own terms.
+Super Mario 64 and The Legend of Zelda: Ocarina of Time are © Nintendo. This is a non-commercial hobby project and is not affiliated with or endorsed by Nintendo. The code in this repository is MIT licensed (see `LICENSE`). The decompilations, the PC ports, Ship of Harkinian and libultraship are separate projects under their own terms.
