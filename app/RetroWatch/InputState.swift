@@ -7,16 +7,13 @@ import GameController
 /// GameController framework, which watchOS lacks) into one N64 controller
 /// state, which the game thread hands to the core every frame.
 ///
-/// First-pass touch scheme (the watch screen only tracks one finger):
-/// drag = analog stick, tap = A, long press = Start, Digital Crown = C-left /
-/// C-right.
+/// Touch scheme (the watch screen only tracks one finger): drag = analog
+/// stick, tap = B, long press = Start, double pinch (watchOS double tap) = A,
+/// Digital Crown = C-left / C-right.
 final class InputState {
     private let lock = NSLock()
     private var touchStick = CGVector.zero // -1...1 on each axis
-    private var tapFramesLeft = 0
-    private var startFramesLeft = 0
-    private var crownFramesLeft = 0
-    private var crownButton: UInt16 = 0
+    private var held: [UInt16: Int] = [:] // button -> frames left to hold it
 
     // Called from the main thread.
 
@@ -24,20 +21,14 @@ final class InputState {
         lock.withLock { touchStick = v }
     }
 
-    func tap() {
-        lock.withLock { tapFramesLeft = 4 }
-    }
-
-    func pressStart() {
-        lock.withLock { startFramesLeft = 4 }
+    /// Holds a WATCH_BTN_* button down for the next `frames` game frames.
+    func press(_ button: Int, frames: Int = 4) {
+        lock.withLock { held[UInt16(button)] = frames }
     }
 
     func crownTurned(by delta: Double) {
         guard abs(delta) > 0.01 else { return }
-        lock.withLock {
-            crownButton = UInt16(delta > 0 ? WATCH_BTN_C_RIGHT : WATCH_BTN_C_LEFT)
-            crownFramesLeft = 3
-        }
+        press(delta > 0 ? WATCH_BTN_C_RIGHT : WATCH_BTN_C_LEFT, frames: 3)
     }
 
     // Called from the game thread, once per frame.
@@ -47,17 +38,9 @@ final class InputState {
         var stick = CGVector.zero
         lock.withLock {
             stick = touchStick
-            if tapFramesLeft > 0 {
-                buttons |= UInt16(WATCH_BTN_A)
-                tapFramesLeft -= 1
-            }
-            if startFramesLeft > 0 {
-                buttons |= UInt16(WATCH_BTN_START)
-                startFramesLeft -= 1
-            }
-            if crownFramesLeft > 0 {
-                buttons |= crownButton
-                crownFramesLeft -= 1
+            for (button, frames) in held {
+                buttons |= button
+                held[button] = frames > 1 ? frames - 1 : nil
             }
         }
 

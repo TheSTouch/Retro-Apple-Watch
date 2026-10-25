@@ -26,6 +26,7 @@ struct GameView: View {
             }
             .contentShape(Rectangle())
             .gesture(touchStick(radius: min(geo.size.width, geo.size.height) * 0.25))
+            .overlay(alignment: .topLeading) { jumpButton }
         }
         .ignoresSafeArea()
         .focusable()
@@ -40,8 +41,29 @@ struct GameView: View {
         }
     }
 
+    /// A, triggered by the watchOS double tap (pinching twice with the hand that
+    /// wears the watch), so Mario can jump while the other hand drags the stick.
+    /// Held for 8 frames: in SM64 a longer press jumps higher.
+    @ViewBuilder private var jumpButton: some View {
+        let button = Button {
+            core.input.press(WATCH_BTN_A, frames: 8)
+        } label: {
+            Text("A")
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(0.35))
+        .padding(.leading, 8)
+        if #available(watchOS 11.0, *) {
+            button.handGestureShortcut(.primaryAction)
+        } else {
+            button
+        }
+    }
+
     /// Drag from wherever the finger lands: the offset is the stick. A short,
-    /// still touch is a tap (A button); a still touch held for half a second
+    /// still touch is a tap (B, punch); a still touch held for half a second
     /// is Start, sent when the finger lifts.
     private func touchStick(radius: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
@@ -57,9 +79,9 @@ struct GameView: View {
                 if let start = touchStart, moved < 8 {
                     let held = Date().timeIntervalSince(start)
                     if held < 0.3 {
-                        core.input.tap()
+                        core.input.press(WATCH_BTN_B)
                     } else if held >= 0.5 {
-                        core.input.pressStart()
+                        core.input.press(WATCH_BTN_START)
                     }
                 }
                 touchStart = nil

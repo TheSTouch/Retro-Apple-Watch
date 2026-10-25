@@ -109,11 +109,12 @@ The watch screen tracks only one finger, so controls are a design problem in the
 | Input | N64 |
 |---|---|
 | Drag anywhere | Analog stick |
-| Tap | A |
+| Double pinch (watchOS double tap, with the hand wearing the watch) | A (jump, confirm) |
+| Tap | B (punch) |
 | Hold still for half a second, then lift | Start |
 | Digital Crown | Camera (C-left / C-right) |
 
-B, Z and R don't have a mapping yet. Bluetooth gamepads would solve this, but watchOS has no GameController framework.
+The double pinch uses the other hand, so you can jump while dragging. It needs watchOS 11 and an Apple Watch Series 9 / Ultra 2 or newer. watchOS gives apps only this one hand gesture, so single pinches can't be detected. Z and R don't have a mapping yet.
 
 ## Roadmap
 

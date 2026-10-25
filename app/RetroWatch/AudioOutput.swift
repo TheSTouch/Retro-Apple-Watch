@@ -17,13 +17,16 @@ final class AudioOutput {
             engine.connect(node, to: engine.mainMixerNode, format: format)
             source = node
         }
+        // .playback (not .ambient) so the watch speaker plays it, silent mode or not.
+        let session = AVAudioSession.sharedInstance()
         do {
-            try AVAudioSession.sharedInstance().setCategory(.ambient)
-            try AVAudioSession.sharedInstance().setActive(true)
+            try session.setCategory(.playback, mode: .default, policy: .default)
+            try session.setActive(true)
             try engine.start()
         } catch {
             print("audio: \(error)")
         }
+        print("audio: running=\(engine.isRunning) outputs=\(session.currentRoute.outputs.map(\.portType.rawValue))")
     }
 
     func stop() {
