@@ -21,6 +21,8 @@
 #include "watch_port.h"
 #include "../src/port_internal.h"
 
+#include "menu_watch.h"
+
 // Globals the game expects the platform layer (pc_main.c) to define.
 OSMesg gMainReceivedMesg;
 OSMesgQueue gSIEventMesgQueue;
@@ -88,6 +90,7 @@ int watch_port_frame_rate(void) {
 }
 
 void watch_port_run_frame(void) {
+    watch_menu_frame_tick();
     gfx_start_frame();
     game_loop_one_iteration();
 

@@ -3,6 +3,7 @@
 #ifndef PORT_INTERNAL_H
 #define PORT_INTERNAL_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct GfxRenderingAPI;
@@ -15,5 +16,8 @@ extern struct AudioAPI audio_watch_api;
 
 // Latest controller state set by watch_input_set().
 void watch_input_get(uint16_t *buttons, int8_t *stick_x, int8_t *stick_y);
+
+// Takes the pending menu tap set by watch_input_pointer_tap(), if any.
+bool watch_input_take_pointer(float *x, float *y);
 
 #endif

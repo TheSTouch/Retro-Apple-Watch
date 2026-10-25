@@ -1,0 +1,26 @@
+diff --git a/src/menu/file_select.c b/src/menu/file_select.c
+index 9437dcc..9c6653c 100644
+--- a/src/menu/file_select.c
++++ b/src/menu/file_select.c
+@@ -70,6 +70,10 @@ static u8 sTextBaseAlpha = 0;
+ // sCursorPos[0]: X | sCursorPos[1]: Y
+ static f32 sCursorPos[] = {0, 0};
+ 
++#ifdef TARGET_WATCH
++void watch_menu_cursor_hook(f32 *cursorPos);
++#endif
++
+ // Determines which graphic to use for the cursor.
+ static s16 sCursorClickingTimer = 0;
+ 
+@@ -1665,6 +1669,10 @@ void handle_controller_cursor_input(void) {
+     // Move cursor
+     sCursorPos[0] += rawStickX / 8;
+     sCursorPos[1] += rawStickY / 8;
++#ifdef TARGET_WATCH
++    // The watch port moves the cursor straight to where the screen was tapped.
++    watch_menu_cursor_hook(sCursorPos);
++#endif
+ 
+     // Stop cursor from going offscreen
+     if (sCursorPos[0] > 132.0f) {

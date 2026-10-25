@@ -8,6 +8,8 @@
 #include "watch_port.h"
 #include "../src/port_internal.h"
 
+#include "menu_watch.h"
+
 s32 osContInit(UNUSED OSMesgQueue *mq, u8 *controllerBits, UNUSED OSContStatus *status) {
     *controllerBits = 1; // one controller, in port 1
     return 0;
@@ -21,7 +23,7 @@ void osContGetReadData(OSContPad *pad) {
     uint16_t buttons;
     int8_t stick_x, stick_y;
     watch_input_get(&buttons, &stick_x, &stick_y);
-    pad->button = buttons;
+    pad->button = buttons | watch_menu_extra_buttons();
     pad->stick_x = stick_x;
     pad->stick_y = stick_y;
     pad->errnum = 0;

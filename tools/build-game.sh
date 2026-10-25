@@ -29,6 +29,13 @@ expected=$(cut -d' ' -f1 "$SM64/sm64.$VERSION.sha1")
 actual=$(shasum -a 1 "$rom" | cut -d' ' -f1)
 [ "$expected" = "$actual" ] || fail "$rom is not an unmodified $VERSION ROM (SHA-1 $actual)"
 
+# The port's small hooks into the decomp (patches/*.patch), applied in place
+# once. The submodule is set to ignore=dirty, so they don't show as changes.
+for patch in "$ROOT"/patches/*.patch; do
+    git -C "$SM64" apply --reverse --check "$patch" 2>/dev/null && continue
+    git -C "$SM64" apply "$patch" || fail "could not apply patches/$(basename "$patch")"
+done
+
 # Builds the game for one SDK/architecture and prints the library path.
 build_one() {
     sdk=$1

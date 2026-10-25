@@ -3,6 +3,7 @@
 # watch instead of the host. WATCH_SDK and WATCH_TARGET come from build-game.sh.
 # - Drops -march=native, which the PC Makefile adds and clang rejects for arm.
 # - Turns off fortify, whose memcpy/memset macros clash with libultra's os_libc.h.
+# - Defines TARGET_WATCH, which the port's patches (patches/) key on.
 # - Compiles the PC-only backends (SDL, OpenGL, ALSA, DirectX, keyboard, the PC
 #   main) as empty files: they need libraries watchOS lacks, and the port
 #   replaces them. watch-ar.sh leaves their objects out of the library anyway.
@@ -18,4 +19,4 @@ for a in "$@"; do
         *) set -- "$@" "$a" ;;
     esac
 done
-exec xcrun -sdk "$WATCH_SDK" clang -target "$WATCH_TARGET" -Wno-everything -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 "$@"
+exec xcrun -sdk "$WATCH_SDK" clang -target "$WATCH_TARGET" -Wno-everything -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DTARGET_WATCH "$@"

@@ -39,6 +39,7 @@ The renderer draws the N64's native 320×240 on the CPU. The watch scales the pi
 | `port/src/` | The watchOS platform layer (C): renderer, audio, input |
 | `port/game/` | Game glue: per-frame entry point and controller calls (built into the game library) |
 | `port/demo/` | A test scene that needs no game data |
+| `patches/` | Small hooks into the decomp, applied by `build-game.sh` (e.g. tap-to-point in the file select) |
 | `app/` | The SwiftUI watch app and its [XcodeGen](https://github.com/yonaskolb/XcodeGen) project spec |
 | `tools/render-preview/` | Runs the core on a Mac and writes a frame to an image, for quick renderer checks |
 | `tools/build-game.sh` | Builds the game from your ROM into `build/watch/<sdk>/libsm64.a` |
@@ -108,13 +109,14 @@ The watch screen tracks only one finger, so controls are a design problem in the
 
 | Input | N64 |
 |---|---|
-| Drag anywhere | Analog stick |
-| Double pinch (watchOS double tap, with the hand wearing the watch) | A (jump, confirm) |
-| Tap | B (punch) |
-| Hold still for half a second, then lift | Start |
+| Drag on the game image | Analog stick |
+| Slide from the game image onto a button | That button, while the stick keeps its direction (a running jump is "drag, slide onto A") |
+| A / B / Z buttons under the game | A (jump), B (punch), Z (crouch) |
+| Tap the game image | A, or in the file select: point and click right there |
+| Hold still on the game image for half a second, then lift | Start |
 | Digital Crown | Camera (C-left / C-right) |
 
-The double pinch uses the other hand, so you can jump while dragging. It needs watchOS 11 and an Apple Watch Series 9 / Ultra 2 or newer. watchOS gives apps only this one hand gesture, so single pinches can't be detected. Z and R don't have a mapping yet.
+The game is 4:3, so on the watch's taller screen there's room for a button bar below it. watchOS tracks only one finger, which is why buttons are reached by sliding rather than with a second finger. R and C-up/C-down don't have a mapping yet. (watchOS's double-tap pinch was tried for jumping, but it lags about two seconds and doesn't fire while the screen is touched.)
 
 ## Roadmap
 

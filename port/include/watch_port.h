@@ -55,6 +55,14 @@ uint32_t watch_port_copy_frame(uint8_t *dst);
 // the range a real N64 stick reaches).
 void watch_input_set(uint16_t buttons, int8_t stick_x, int8_t stick_y);
 
+// Nonzero while the game shows a menu with a free-moving cursor (the file
+// select). A tap should then point and click rather than act as a button.
+int watch_port_menu_pointer_active(void);
+
+// Moves that menu cursor to a framebuffer position (pixels from the top-left
+// of the WATCH_FB_WIDTH x WATCH_FB_HEIGHT image) and clicks there.
+void watch_input_pointer_tap(float x, float y);
+
 // Audio produced by the core: signed 16-bit stereo, interleaved.
 int watch_audio_sample_rate(void);
 // Fills up to `frames` stereo frames and returns how many were available;

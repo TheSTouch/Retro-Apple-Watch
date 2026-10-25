@@ -7,13 +7,13 @@ import GameController
 /// GameController framework, which watchOS lacks) into one N64 controller
 /// state, which the game thread hands to the core every frame.
 ///
-/// Touch scheme (the watch screen only tracks one finger): drag = analog
-/// stick, tap = B, long press = Start, double pinch (watchOS double tap) = A,
-/// Digital Crown = C-left / C-right.
+/// GameView decides what touches mean; this class only holds the result:
+/// the stick, buttons held while a finger is on them, and timed presses.
 final class InputState {
     private let lock = NSLock()
     private var touchStick = CGVector.zero // -1...1 on each axis
-    private var held: [UInt16: Int] = [:] // button -> frames left to hold it
+    private var timed: [UInt16: Int] = [:] // button -> frames left to hold it
+    private var heldButtons: UInt16 = 0     // held as long as the finger stays
 
     // Called from the main thread.
 
@@ -23,7 +23,12 @@ final class InputState {
 
     /// Holds a WATCH_BTN_* button down for the next `frames` game frames.
     func press(_ button: Int, frames: Int = 4) {
-        lock.withLock { held[UInt16(button)] = frames }
+        lock.withLock { timed[UInt16(button)] = frames }
+    }
+
+    /// Buttons that stay down until the next call (0 releases them).
+    func setHeld(_ buttons: UInt16) {
+        lock.withLock { heldButtons = buttons }
     }
 
     func crownTurned(by delta: Double) {
@@ -38,9 +43,10 @@ final class InputState {
         var stick = CGVector.zero
         lock.withLock {
             stick = touchStick
-            for (button, frames) in held {
+            buttons |= heldButtons
+            for (button, frames) in timed {
                 buttons |= button
-                held[button] = frames > 1 ? frames - 1 : nil
+                timed[button] = frames > 1 ? frames - 1 : nil
             }
         }
 

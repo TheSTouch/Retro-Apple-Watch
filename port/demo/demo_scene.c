@@ -176,6 +176,10 @@ int watch_port_frame_rate(void) {
     return 30;
 }
 
+int watch_port_menu_pointer_active(void) {
+    return 0; // the demo has no menus
+}
+
 void watch_port_run_frame(void) {
     uint16_t buttons;
     int8_t stick_x, stick_y;
