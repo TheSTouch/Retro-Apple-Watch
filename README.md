@@ -40,6 +40,7 @@ The renderer draws the N64's native 320×240 on the CPU. The watch scales the pi
 | `port/game/` | Game glue: per-frame entry point and controller calls (built into the game library) |
 | `port/demo/` | A test scene that needs no game data |
 | `bridge/esp32-pad/` | ESP32 firmware that relays a Bluetooth game controller to the watch |
+| `docs/` | [Limitations and findings](docs/limitations.md), [Xbox controller notes](docs/xbox-controller.md) |
 | `patches/` | Small hooks into the decomp, applied by `build-game.sh` (e.g. tap-to-point in the file select) |
 | `app/` | The SwiftUI watch app and its [XcodeGen](https://github.com/yonaskolb/XcodeGen) project spec |
 | `tools/render-preview/` | Runs the core on a Mac and writes a frame to an image, for quick renderer checks |
@@ -121,7 +122,7 @@ The game is 4:3, so on the watch's taller screen there's room for a button bar b
 
 ## Playing with a game controller
 
-watchOS can't use game controllers directly, so the project includes a small hardware bridge: an **ESP32** that connects to an Xbox Wireless controller and relays its state to the watch over Bluetooth LE. See [`bridge/esp32-pad`](bridge/esp32-pad) for the firmware, pairing and protocol.
+watchOS can't use game controllers directly, so the project includes a small hardware bridge: an **ESP32** that connects to an Xbox Wireless controller and relays its state to the watch over Bluetooth LE. See [`bridge/esp32-pad`](bridge/esp32-pad) for the hardware, firmware, pairing, protocol and power, and [`docs/xbox-controller.md`](docs/xbox-controller.md) for what the controller sends.
 
 | Xbox | N64 |
 |---|---|
@@ -136,11 +137,11 @@ watchOS can't use game controllers directly, so the project includes a small har
 
 The watch app finds the bridge by itself. The status at the top-left shows *Controller* once both links are up. Turn the watch face-down under your wrist and play with both hands.
 
-One limit remains: watchOS dims the screen when it isn't touched, and apps can't prevent it. Set *Settings → Display & Brightness → Wake Duration* on the watch to 70 seconds; a tap or a nudge of the Digital Crown wakes it again.
+One limit remains: watchOS dims the screen when it isn't touched, and apps can't prevent it ([details](docs/limitations.md#the-screen-dims-and-apps-cant-stop-it)). Set *Settings → Display & Brightness → Wake Duration* on the watch to 70 seconds; a tap or a nudge of the Digital Crown wakes it again.
 
 ## Help wanted: controls
 
-The port runs well. What it really needs now is a good way to *play* on a one-finger, 46 mm screen. Ideas, experiments and pull requests are very welcome. Some known problems and leads:
+The port runs well. What it really needs now is a good way to *play* on a one-finger, 46 mm screen. Ideas, experiments and pull requests are very welcome. [docs/limitations.md](docs/limitations.md) collects what has been tried so far and why it didn't work. Some known problems and leads:
 
 - **Sliding onto a button pulls the stick backwards.** On the way down to the bar the finger is still on the game area, so the stick follows it downwards. Fixes might use the stick from a moment before the finger reached the bar, or ignore fast downward slides.
 - **R and C-up / C-down have no input yet.** The space above the game is free, and the Digital Crown could do double duty.
