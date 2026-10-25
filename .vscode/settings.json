@@ -1,0 +1,18 @@
+{
+    // The submodules in external/ carry patches applied at build time
+    // (patches/, patches/oot/); they are not ours to commit, so Source
+    // Control shows only this repository.
+    "git.detectSubmodules": false,
+    "git.autoRepositoryDetection": false,
+    "git.repositoryScanIgnoredFolders": ["external"],
+    "git.ignoredRepositories": [
+        "external/sm64-port",
+        "external/Shipwright",
+        "external/Shipwright/libultraship",
+        "external/Shipwright/torch",
+        "/Volumes/SMART/RetroAppleWatch/external/sm64-port",
+        "/Volumes/SMART/RetroAppleWatch/external/Shipwright",
+        "/Volumes/SMART/RetroAppleWatch/external/Shipwright/libultraship",
+        "/Volumes/SMART/RetroAppleWatch/external/Shipwright/torch"
+    ]
+}
