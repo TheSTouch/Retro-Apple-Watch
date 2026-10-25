@@ -5,7 +5,6 @@ import Foundation
 /// and publishes finished frames.
 final class GameCore: ObservableObject {
     @Published private(set) var frame: CGImage?
-    @Published private(set) var frameTimeMs: Double = 0
 
     let input = InputState()
     private let audio = AudioOutput()
@@ -53,17 +52,12 @@ final class GameCore: ObservableObject {
 
         while isRunning {
             input.apply()
-            let start = Date.timeIntervalSinceReferenceDate
             watch_port_run_frame()
-            let elapsed = Date.timeIntervalSinceReferenceDate - start
 
             let seq = watch_port_copy_frame(&pixels)
             if seq != lastSeq, let image = makeImage(pixels) {
                 lastSeq = seq
-                DispatchQueue.main.async {
-                    self.frame = image
-                    self.frameTimeMs = elapsed * 1000
-                }
+                DispatchQueue.main.async { self.frame = image }
             }
 
             nextTick += framePeriod

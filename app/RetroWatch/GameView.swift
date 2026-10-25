@@ -70,11 +70,6 @@ struct GameView: View {
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX, y: rect.minY)
                 }
-                Text(String(format: "%.1f ms", core.frameTimeMs))
-                    .font(.system(size: 9).monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .frame(width: geo.size.width)
-                    .offset(y: geo.size.height - 14)
             }
             .contentShape(Rectangle())
             .gesture(touchGesture(layout))
@@ -96,20 +91,21 @@ struct GameView: View {
         let game: CGRect
         let bar: CGRect
 
+        /// The game is centred vertically, which leaves room above it for later.
         init(size: CGSize) {
             let gameHeight = size.width * CGFloat(WATCH_FB_HEIGHT) / CGFloat(WATCH_FB_WIDTH)
-            game = CGRect(x: 0, y: 0, width: size.width, height: gameHeight)
-            bar = CGRect(x: 0, y: gameHeight, width: size.width, height: size.height - gameHeight)
+            game = CGRect(x: 0, y: (size.height - gameHeight) / 2, width: size.width, height: gameHeight)
+            bar = CGRect(x: 0, y: game.maxY, width: size.width, height: size.height - game.maxY)
         }
 
-        /// Buttons sit right under the game, so the slide from the stick is short.
+        /// Buttons fill the bar from the game's bottom edge to the screen's, so
+        /// the slide from the stick is as short as possible.
         func rect(for button: BarButton) -> CGRect {
             let index = CGFloat(BarButton.allCases.firstIndex(of: button)!)
             let count = CGFloat(BarButton.allCases.count)
-            let gap: CGFloat = 6
-            let width = (bar.width - gap * (count + 1)) / count
-            let height = min(bar.height - 24, 80)
-            return CGRect(x: gap + index * (width + gap), y: bar.minY + gap, width: width, height: height)
+            let gap: CGFloat = 4
+            let width = (bar.width - gap * (count - 1)) / count
+            return CGRect(x: index * (width + gap), y: bar.minY, width: width, height: bar.height)
         }
 
         func button(at point: CGPoint) -> BarButton? {
