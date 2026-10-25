@@ -15,7 +15,7 @@
 #include "gfx/gfx_pc.h"
 
 #include "watch_port.h"
-#include "port_internal.h"
+#include "../src/port_internal.h"
 
 #define TEX_SIZE 32
 
@@ -170,6 +170,10 @@ void watch_port_init(const char *data_dir) {
     build_texture();
     build_cube();
     gfx_init(&gfx_watch_wm_api, &gfx_soft_api, "RetroWatch demo", false);
+}
+
+int watch_port_frame_rate(void) {
+    return 30;
 }
 
 void watch_port_run_frame(void) {

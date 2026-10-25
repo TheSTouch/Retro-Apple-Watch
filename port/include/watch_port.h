@@ -1,7 +1,8 @@
 // C interface between the watchOS app (Swift) and the game core.
 //
 // The game core runs on one dedicated thread that calls watch_port_run_frame()
-// at 30 Hz. Every other function here is safe to call from any thread.
+// at watch_port_frame_rate() Hz. Every other function here is safe to call
+// from any thread.
 
 #ifndef WATCH_PORT_H
 #define WATCH_PORT_H
@@ -40,6 +41,10 @@ void watch_port_init(const char *data_dir);
 
 // Runs one game frame (game logic, rendering and audio generation).
 void watch_port_run_frame(void);
+
+// How often to call watch_port_run_frame(), in Hz: 25 for PAL (European)
+// builds, 30 otherwise. Game speed and audio pitch depend on getting it right.
+int watch_port_frame_rate(void);
 
 // Copies the latest finished frame into dst (WATCH_FB_WIDTH * WATCH_FB_HEIGHT
 // pixels, 4 bytes each, RGBX order). Returns a counter that increases with

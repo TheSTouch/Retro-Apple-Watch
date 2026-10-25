@@ -1,7 +1,8 @@
 import CoreGraphics
 import Foundation
 
-/// Runs the C core on its own thread at 30 Hz and publishes finished frames.
+/// Runs the C core on its own thread at the rate it asks for (25 or 30 Hz)
+/// and publishes finished frames.
 final class GameCore: ObservableObject {
     @Published private(set) var frame: CGImage?
     @Published private(set) var frameTimeMs: Double = 0
@@ -45,7 +46,7 @@ final class GameCore: ObservableObject {
     }
 
     private func loop() {
-        let framePeriod = 1.0 / 30.0
+        let framePeriod = 1.0 / Double(watch_port_frame_rate())
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
         var lastSeq: UInt32 = 0
         var nextTick = Date.timeIntervalSinceReferenceDate

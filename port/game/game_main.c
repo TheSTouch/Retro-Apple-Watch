@@ -1,6 +1,7 @@
 // Game core: Super Mario 64 driven one frame at a time. Takes the place of
 // the PC port's pc_main.c, which owns a blocking main loop and picks desktop
-// backends; on the watch the Swift side calls watch_port_run_frame() at 30 Hz.
+// backends; on the watch the Swift side calls watch_port_run_frame() at
+// watch_port_frame_rate() Hz.
 //
 // Built by tools/build-game.sh with the decomp's own flags, into the same
 // static library as the game.
@@ -49,7 +50,7 @@ void set_vblank_handler(UNUSED s32 index, UNUSED struct VblankHandler *handler, 
                         UNUSED OSMesg *msg) {
 }
 
-// The game produces audio in two chunks per 30 Hz frame. Asking for slightly
+// The game produces audio in two chunks per frame. Asking for slightly
 // more or fewer samples keeps the output buffer near its target fill level.
 #ifdef VERSION_EU
 #define SAMPLES_HIGH 656
@@ -74,6 +75,16 @@ void watch_port_init(const char *data_dir) {
 
     thread5_game_loop(NULL);
     started = 1;
+}
+
+// PAL consoles ran the game at 25 frames per second, and the EU version's
+// audio produces 25 frames' worth of samples per second.
+int watch_port_frame_rate(void) {
+#ifdef VERSION_EU
+    return 25;
+#else
+    return 30;
+#endif
 }
 
 void watch_port_run_frame(void) {
