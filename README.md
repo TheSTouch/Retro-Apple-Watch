@@ -6,6 +6,12 @@ This isn't an emulator. watchOS doesn't let apps generate code at runtime (no JI
 
 > **Status: early, but it runs.** Super Mario 64 builds for watchOS and plays in the Apple Watch simulator. Real watches haven't been tried yet, and performance there is the big unknown.
 
+<p align="center">
+  <img src="docs/images/demo-simulator.png" width="240" alt="The test scene, a spinning checkered cube, running in the Apple Watch simulator">
+</p>
+
+*The test scene running in the Apple Watch simulator. Screenshots of the game itself aren't included, since they would be Nintendo's artwork.*
+
 ## How it works
 
 ```
@@ -73,6 +79,14 @@ To check renderer changes without the simulator:
 tools/render-preview/build.sh
 build/render-preview build/frame.ppm 60
 ```
+
+### On a real watch
+
+```sh
+tools/build-game.sh eu device          # arm64 + arm64_32, covers current and older watches
+```
+
+In Xcode, select the **RetroWatch** target, pick your team under *Signing & Capabilities*, choose your watch as the run destination, and run. The watch must be paired with an iPhone that's connected to the Mac, and have Developer Mode on (*Settings → Privacy & Security*).
 
 ## Game data: bring your own
 
