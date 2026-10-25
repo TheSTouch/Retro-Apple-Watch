@@ -144,7 +144,8 @@ The port runs well. What it really needs now is a good way to *play* on a one-fi
 
 - **Sliding onto a button pulls the stick backwards.** On the way down to the bar the finger is still on the game area, so the stick follows it downwards. Fixes might use the stick from a moment before the finger reached the bar, or ignore fast downward slides.
 - **R and C-up / C-down have no input yet.** The space above the game is free, and the Digital Crown could do double duty.
-- **Game controllers** work through the ESP32 bridge (above). Supporting more controller models in the bridge, and a way to keep the screen awake while playing, are both open.
+- **Game controllers** work through the ESP32 bridge (above). Supporting more controller models in the bridge is open.
+- **Keeping the screen awake** while playing with a controller isn't possible as far as we know. There's no public API, and the private one (`ITIdleTimerState` in IdleTimerServices) is reachable but refuses requests with *Missing com.apple.idle-timer-services entitlement*. Developer provisioning can't grant that entitlement. If you find another way, please open an issue.
 - **The double-tap pinch** (watchOS's hand gesture) was tried for jumping. It lags about two seconds and doesn't fire while the screen is touched.
 - **Wrist tilt** as the stick, via the motion sensors, hasn't been tried.
 
